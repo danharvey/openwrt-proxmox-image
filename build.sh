@@ -39,7 +39,8 @@ docker run --rm -u 1000 \
 OUTDIR="bin/targets/x86/64"
 IMAGE="$OUTDIR/openwrt-$VERSION-$EXTRA_IMAGE_NAME-x86-64-$PROFILE-ext4-combined.img.gz"
 test -f "$IMAGE"
-(cd "$OUTDIR" && sha256sum "$(basename "$IMAGE")" > sha256sums.txt)
+# Written outside bin/ — the container user owns the output tree.
+(cd "$OUTDIR" && sha256sum "$(basename "$IMAGE")") > sha256sums.txt
 
 echo "Built $IMAGE"
 if [ -n "${GITHUB_OUTPUT:-}" ]; then

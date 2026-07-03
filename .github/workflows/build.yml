@@ -33,5 +33,5 @@ jobs:
               --notes "OpenWrt $V x86-64 image for Proxmox VE, built with the official ImageBuilder. Assets are re-uploaded (mutable) if the package list changes within a version."
           gh release upload "v$V" \
             bin/targets/x86/64/*ext4-combined.img.gz \
-            bin/targets/x86/64/sha256sums.txt \
+            sha256sums.txt \
             --clobber
