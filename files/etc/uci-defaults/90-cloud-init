@@ -63,10 +63,14 @@ fi
 # --- network-config (v1): physical interfaces + nameservers ----------------
 NC="$MNT/network-config"
 if [ -f "$NC" ]; then
-	# The cloud-init data defines connectivity; drop the stock LAN so the
-	# image doesn't sit on 192.168.1.1 running a DHCP server.
+	# The cloud-init data defines connectivity; drop the stock LAN (so the
+	# image doesn't sit on 192.168.1.1 running a DHCP server) and the stock
+	# WAN (which claims eth1 and drags it into the reject-everything wan
+	# firewall zone).
 	uci -q delete network.lan
 	uci -q delete dhcp.lan
+	uci -q delete network.wan
+	uci -q delete network.wan6
 
 	DNS="$(awk '
 		/- type: *.?nameserver/ { ns = 1; inaddr = 0; next }
@@ -105,17 +109,20 @@ if [ -f "$NC" ]; then
 	' "$NC" > /tmp/cloud-init-uci
 	sh /tmp/cloud-init-uci
 
-	if [ -n "$DNS" ]; then
-		for iface in $(uci -q show network | sed -n "s/^network\.\(ci_[a-z0-9_]*\)=interface$/\1/p"); do
-			[ "$(uci -q get "network.$iface.proto")" = "static" ] || continue
-			for d in $DNS; do
-				uci add_list "network.$iface.dns=$d"
-			done
+	# Static (management) interfaces join the lan firewall zone so SSH/LuCI
+	# are reachable; dhcp ones are left unassigned.
+	LAN_ZONE="$(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\(@zone\[[0-9]*\]\)\.name='lan'$/\1/p" | head -n 1)"
+	for iface in $(uci -q show network | sed -n "s/^network\.\(ci_[a-z0-9_]*\)=interface$/\1/p"); do
+		[ "$(uci -q get "network.$iface.proto")" = "static" ] || continue
+		for d in $DNS; do
+			uci add_list "network.$iface.dns=$d"
 		done
-	fi
+		[ -n "$LAN_ZONE" ] && uci add_list "firewall.$LAN_ZONE.network=$iface"
+	done
 
 	uci commit network
 	uci commit dhcp
+	uci commit firewall
 	rm -f /tmp/cloud-init-uci
 	ci_log "applied network-config from $DEV"
 fi
