@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/London",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^build\\.sh$/"],
+      "matchStrings": [
+        "IMAGEBUILDER=\"(?<depName>openwrt/imagebuilder):(?<currentValue>x86-64-[0-9.]+)@(?<currentDigest>sha256:[a-f0-9]+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^x86-64-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    }
+  ]
+}

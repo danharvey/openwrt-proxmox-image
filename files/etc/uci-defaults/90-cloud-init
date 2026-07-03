@@ -1,0 +1,123 @@
+# Apply Proxmox NoCloud cloud-init data (CIDATA volume) on first boot.
+#
+# Scope: only the NoCloud files Proxmox VE generates are supported —
+# user-data (cloud-config: hostname, ssh_authorized_keys) and network-config
+# (v1: physical entries with one static or dhcp subnet, plus nameservers).
+# YAML is parsed line-wise with awk; this is not a general cloud-init.
+#
+# Fails open: with no CIDATA volume the image boots with stock OpenWrt
+# defaults and a console remains usable. uci-defaults scripts are deleted
+# after a successful (exit 0) run, so this never re-applies stale data —
+# after first boot, configuration management owns the config.
+
+MNT="/tmp/cidata"
+
+ci_log() { logger -t cloud-init "$1" 2>/dev/null; echo "cloud-init: $1"; }
+
+# --- locate and mount the CIDATA volume ------------------------------------
+DEV="$(block info 2>/dev/null | awk -F: 'tolower($0) ~ /label="cidata"/ {print $1; exit}')"
+if [ -z "$DEV" ]; then
+	for d in /dev/sr0 /dev/sr1; do
+		[ -b "$d" ] && DEV="$d" && break
+	done
+fi
+if [ -z "$DEV" ]; then
+	ci_log "no CIDATA volume found, keeping defaults"
+	exit 0
+fi
+
+mkdir -p "$MNT"
+if ! mount -t iso9660 -o ro "$DEV" "$MNT" 2>/dev/null && ! mount -o ro "$DEV" "$MNT" 2>/dev/null; then
+	ci_log "could not mount $DEV, keeping defaults"
+	exit 0
+fi
+trap 'umount "$MNT" 2>/dev/null' EXIT
+
+# --- user-data: hostname + ssh authorized keys -----------------------------
+UD="$MNT/user-data"
+if [ -f "$UD" ]; then
+	CI_HOSTNAME="$(awk -F': *' '/^hostname:/ {gsub(/["'\'']/, "", $2); print $2; exit}' "$UD")"
+	if [ -n "$CI_HOSTNAME" ]; then
+		uci set system.@system[0].hostname="$CI_HOSTNAME"
+		uci commit system
+		echo "$CI_HOSTNAME" > /proc/sys/kernel/hostname
+		ci_log "hostname set to $CI_HOSTNAME"
+	fi
+
+	KEYS="$(awk '
+		/^ssh_authorized_keys:/ { f = 1; next }
+		f && /^[ \t]*- / { sub(/^[ \t]*-[ \t]*/, ""); gsub(/^["'\'']|["'\'']$/, ""); print; next }
+		f && /^[^ \t]/ { f = 0 }
+	' "$UD")"
+	if [ -n "$KEYS" ]; then
+		mkdir -p /root/.ssh
+		chmod 700 /root/.ssh
+		printf '%s\n' "$KEYS" > /root/.ssh/authorized_keys
+		chmod 600 /root/.ssh/authorized_keys
+		# Same keys for dropbear, for forks that keep it instead of OpenSSH.
+		[ -d /etc/dropbear ] && printf '%s\n' "$KEYS" > /etc/dropbear/authorized_keys
+		ci_log "installed ssh authorized keys"
+	fi
+fi
+
+# --- network-config (v1): physical interfaces + nameservers ----------------
+NC="$MNT/network-config"
+if [ -f "$NC" ]; then
+	# The cloud-init data defines connectivity; drop the stock LAN so the
+	# image doesn't sit on 192.168.1.1 running a DHCP server.
+	uci -q delete network.lan
+	uci -q delete dhcp.lan
+
+	DNS="$(awk '
+		/- type: *.?nameserver/ { ns = 1; inaddr = 0; next }
+		ns && /address:/ { inaddr = 1; next }
+		ns && /search:/ { inaddr = 0; next }
+		ns && inaddr && /^[ \t]*- / { sub(/^[ \t]*-[ \t]*/, ""); gsub(/["'\'']/, ""); print; next }
+		ns && /- type:/ { ns = 0 }
+	' "$NC")"
+
+	# Emit uci commands per physical interface, then apply them.
+	awk '
+		function flush() {
+			if (name == "" || proto == "") return
+			s = "ci_" name
+			printf "uci set network.%s=interface\n", s
+			printf "uci set network.%s.device=%s\n", s, name
+			printf "uci set network.%s.proto=%s\n", s, proto
+			if (proto == "static") {
+				printf "uci set network.%s.ipaddr=%s\n", s, addr
+				printf "uci set network.%s.netmask=%s\n", s, mask
+				if (gw != "") printf "uci set network.%s.gateway=%s\n", s, gw
+			}
+			printf "uci set network.%s.ipv6=0\n", s
+			name = ""
+		}
+		{ gsub(/["'\'']/, "") }
+		/- type: *physical/ { flush(); phys = 1; proto = ""; addr = ""; mask = ""; gw = ""; next }
+		/- type: *nameserver/ { flush(); phys = 0; next }
+		phys && $1 == "name:" { name = $2 }
+		phys && /- type: *static/ { proto = "static" }
+		phys && /- type: *dhcp/ { proto = "dhcp" }
+		phys && $1 == "address:" { addr = $2 }
+		phys && $1 == "netmask:" { mask = $2 }
+		phys && $1 == "gateway:" { gw = $2 }
+		END { flush() }
+	' "$NC" > /tmp/cloud-init-uci
+	sh /tmp/cloud-init-uci
+
+	if [ -n "$DNS" ]; then
+		for iface in $(uci -q show network | sed -n "s/^network\.\(ci_[a-z0-9_]*\)=interface$/\1/p"); do
+			[ "$(uci -q get "network.$iface.proto")" = "static" ] || continue
+			for d in $DNS; do
+				uci add_list "network.$iface.dns=$d"
+			done
+		done
+	fi
+
+	uci commit network
+	uci commit dhcp
+	rm -f /tmp/cloud-init-uci
+	ci_log "applied network-config from $DEV"
+fi
+
+exit 0

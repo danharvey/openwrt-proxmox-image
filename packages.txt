@@ -1,0 +1,51 @@
+# Packages baked into the image. One per line, '#' comments, '-' prefix removes
+# a default package. Kernel modules (kmod-*) are matched to the release kernel
+# by the ImageBuilder automatically.
+
+# Web UI
+luci
+luci-ssl
+
+# Dual WAN routing + failover notifications
+mwan3
+luci-app-mwan3
+mailsend
+
+# Replace dropbear with OpenSSH (sftp needed for config management via ansible)
+-dropbear
+openssh-server
+openssh-sftp-server
+
+# Admin tooling; python3 lets ansible modules run on the router
+python3
+ethtool
+parted
+shadow-usermod
+
+# No IPv6 DHCP
+-odhcp6c
+-odhcpd-ipv6only
+
+# mDNS reflection across VLANs
+avahi-nodbus-daemon
+
+# Monitoring
+prometheus-node-exporter-lua
+prometheus-node-exporter-lua-nat_traffic
+prometheus-node-exporter-lua-netstat
+prometheus-node-exporter-lua-uci_dhcp_host
+prometheus-node-exporter-lua-openwrt
+
+# Intel gigabit SR-IOV VF driver
+kmod-igbvf
+
+# Let's Encrypt via DNS-01 (25.12: the 'acme' meta package was replaced by acme-acmesh)
+acme-acmesh
+acme-acmesh-dnsapi
+luci-app-acme
+
+tailscale
+
+# Cloud-init first-boot support: mount the Proxmox NoCloud CIDATA ISO
+kmod-fs-isofs
+block-mount

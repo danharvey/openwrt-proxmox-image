@@ -1,0 +1,37 @@
+name: Build image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - build.sh
+      - packages.txt
+      - files/**
+      - .github/workflows/build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        id: build
+        run: ./build.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.build.outputs.version }}"
+          gh release view "v$V" >/dev/null 2>&1 || \
+            gh release create "v$V" --title "OpenWrt $V" \
+              --notes "OpenWrt $V x86-64 image for Proxmox VE, built with the official ImageBuilder. Assets are re-uploaded (mutable) if the package list changes within a version."
+          gh release upload "v$V" \
+            bin/targets/x86/64/*ext4-combined.img.gz \
+            bin/targets/x86/64/sha256sums.txt \
+            --clobber
