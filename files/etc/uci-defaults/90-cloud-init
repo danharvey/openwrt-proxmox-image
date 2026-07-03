@@ -14,6 +14,16 @@ MNT="/tmp/cidata"
 
 ci_log() { logger -t cloud-init "$1" 2>/dev/null; echo "cloud-init: $1"; }
 
+# uci-defaults re-run after every sysupgrade (the new rootfs ships this
+# script again). If the system is already configured - e.g. a config-
+# preserving sysupgrade restored it - leave it alone; configuration
+# management owns it. After `sysupgrade -n` the hostname is back to the
+# factory default and cloud-init correctly re-applies.
+if [ "$(uci -q get system.@system[0].hostname)" != "OpenWrt" ]; then
+	ci_log "system already configured, skipping"
+	exit 0
+fi
+
 # --- locate and mount the CIDATA volume ------------------------------------
 DEV="$(block info 2>/dev/null | awk -F: 'tolower($0) ~ /label="cidata"/ {print $1; exit}')"
 if [ -z "$DEV" ]; then
