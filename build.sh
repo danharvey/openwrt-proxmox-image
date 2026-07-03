@@ -21,8 +21,11 @@ VERSION="${TAG#x86-64-}"
 
 rm -rf bin
 mkdir -p bin
+# The imagebuilder container runs as its own 'buildbot' user (uid 1000), which
+# must be able to write the mounted output dir regardless of the host uid.
+chmod 777 bin
 
-docker run --rm -u "$(id -u)" \
+docker run --rm -u 1000 \
   -v "$(pwd)/bin:/builder/bin" \
   -v "$(pwd)/files:/builder/files:ro" \
   "$IMAGEBUILDER" \
