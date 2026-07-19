@@ -28,10 +28,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.build.outputs.version }}"
-          gh release view "v$V" >/dev/null 2>&1 || \
-            gh release create "v$V" --title "OpenWrt $V" \
-              --notes "OpenWrt $V x86-64 image for Proxmox VE, built with the official ImageBuilder. Assets are re-uploaded (mutable) if the package list changes within a version."
-          gh release upload "v$V" \
+          # Immutable per-build revision. Each release is v<openwrt-version>-<N>;
+          # N is the next revision for this OpenWrt version, so changing
+          # packages.txt/files on the same version publishes a fresh, distinct
+          # image (v25.12.5-1, -2, ...) instead of clobbering the last one.
+          # A new OpenWrt version starts again at -1.
+          Vre="$(printf '%s' "$V" | sed 's/\./\\./g')"
+          # grep exits 1 when no prior revision exists (first build of a
+          # version); tolerate that under `set -eo pipefail` so N defaults to 0.
+          N="$(gh release list --limit 200 --json tagName -q '.[].tagName' \
+                 | { grep -oE "^v${Vre}-[0-9]+$" || true; } \
+                 | sed -E "s/^v${Vre}-//" \
+                 | sort -n | tail -1)"
+          N=$(( ${N:-0} + 1 ))
+          TAG="v${V}-${N}"
+          gh release create "$TAG" --title "OpenWrt $V (build $N)" \
+            --notes "OpenWrt $V x86-64 image for Proxmox VE, built with the official ImageBuilder. Immutable build revision $N — a new revision is published whenever packages.txt or files/ change on the same OpenWrt version."
+          gh release upload "$TAG" \
             bin/targets/x86/64/*ext4-combined.img.gz \
-            sha256sums.txt \
-            --clobber
+            sha256sums.txt

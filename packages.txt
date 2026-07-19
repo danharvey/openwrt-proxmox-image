@@ -29,6 +29,10 @@ shadow-usermod
 # mDNS reflection across VLANs
 avahi-nodbus-daemon
 
+# DNS-over-HTTPS upstream (DoH) with LuCI app; config lives in ansible
+https-dns-proxy
+luci-app-https-dns-proxy
+
 # Monitoring
 prometheus-node-exporter-lua
 prometheus-node-exporter-lua-nat_traffic

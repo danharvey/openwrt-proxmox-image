@@ -11,14 +11,18 @@ drive by a small first-boot script (`files/etc/uci-defaults/90-cloud-init`).
 
 ## Downloads
 
-Each OpenWrt release is published as a GitHub Release (e.g. `v25.12.5`)
-containing:
+Each build is published as an **immutable** GitHub Release tagged
+`v<openwrt-version>-<build>` (e.g. `v25.12.5-1`), containing:
 
 - `openwrt-<version>-proxmox-x86-64-generic-ext4-combined.img.gz`
 - `sha256sums.txt`
 
-Note: assets are mutable within a version — if the package list changes, the
-image for the current release is rebuilt and re-uploaded.
+The build revision distinguishes image rebuilds on the same OpenWrt version:
+changing `packages.txt` or `files/` publishes the next revision
+(`v25.12.5-1` → `v25.12.5-2`) rather than overwriting the previous image, so
+provisioned VMs keep pointing at exactly the image they were built from. A new
+OpenWrt version restarts the revision at `-1`. The OpenWrt version alone still
+names the image file inside the release.
 
 ## Using with Proxmox
 
