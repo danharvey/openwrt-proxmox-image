@@ -15,7 +15,7 @@
   ],
   "packageRules": [
     {
-      "description": "New OpenWrt point releases: open the PR as soon as the tag is published and merge it straight away. Merging triggers the build workflow, which publishes the next v<version>-<N> release. There are no PR checks to wait on (the build only runs on main), hence ignoreTests. Major series bumps (e.g. 25.x -> 26.x) still wait for a human, since package names change between series.",
+      "description": "New OpenWrt point releases (see README 'Updates and releases'): open the PR as soon as the tag is published and merge it straight away. Merging triggers the build workflow, which publishes the next v<version>-<N> release. There are no PR checks to wait on (the build only runs on main), hence ignoreTests. Major series bumps (e.g. 25.x -> 26.x) still wait for a human, since package names change between series.",
       "matchPackageNames": ["openwrt/imagebuilder"],
       "matchUpdateTypes": ["minor", "patch"],
       "schedule": ["at any time"],
@@ -23,7 +23,7 @@
       "ignoreTests": true
     },
     {
-      "description": "Digest-only rebuilds of the same imagebuilder tag: don't publish a new image revision for these. Each automerge would cut a release and open an openwrt_release PR in home_projects.",
+      "description": "Digest-only rebuilds of the same imagebuilder tag: don't publish a new image revision for these. The OpenWrt version is unchanged, so a new release would only create noise for anyone tracking releases of this repo.",
       "matchPackageNames": ["openwrt/imagebuilder"],
       "matchUpdateTypes": ["digest"],
       "enabled": false
