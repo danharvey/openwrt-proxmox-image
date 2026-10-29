@@ -4,7 +4,7 @@
 set -eu
 
 # Renovate keeps this pinned to the latest stable release (docker datasource).
-IMAGEBUILDER="openwrt/imagebuilder:x86-64-25.12.5@sha256:3eb52da7a3e521e601976a11439d44d7e489e944e02e91ad693eb6f8d2b3d603"
+IMAGEBUILDER="openwrt/imagebuilder:x86-64-25.12.6@sha256:b7cc4a580367f48436f4b2c00ef4aa8f8a0024d63ffc8248900ffa4b960761b4"
 
 PROFILE="generic"
 # x86 sysupgrade rewrites the partition table from the image: this value must
