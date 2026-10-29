@@ -42,8 +42,13 @@ jobs:
                  | sort -n | tail -1)"
           N=$(( ${N:-0} + 1 ))
           TAG="v${V}-${N}"
-          gh release create "$TAG" --title "OpenWrt $V (build $N)" \
+          # Immutable releases are enabled on this repo: once a release is
+          # published its assets are frozen, so upload to a draft and publish
+          # last. (Creating then uploading published an empty v25.12.6-1.)
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" \
+            --title "OpenWrt $V (build $N)" \
             --notes "OpenWrt $V x86-64 image for Proxmox VE, built with the official ImageBuilder. Immutable build revision $N — a new revision is published whenever packages.txt or files/ change on the same OpenWrt version."
           gh release upload "$TAG" \
             bin/targets/x86/64/*ext4-combined.img.gz \
             sha256sums.txt
+          gh release edit "$TAG" --draft=false --latest
