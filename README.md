@@ -51,9 +51,44 @@ not a general cloud-init implementation.
 
 - `packages.txt` — packages baked into the image (one per line, `-` removes)
 - `build.sh` — profile, rootfs size, OpenWrt version pin (kept current by
-  Renovate; merging the bump PR builds and publishes the new release)
+  Renovate, see below)
 
 Build locally with just docker: `./build.sh`
+
+## Updates and releases
+
+How a new image gets published:
+
+1. [Renovate](https://docs.renovatebot.com) watches the
+   `openwrt/imagebuilder` tag pinned in `build.sh` (see `renovate.json`).
+2. **Point/minor releases** (e.g. `25.12.6` → `25.12.7`): Renovate opens a PR
+   as soon as the tag appears and **automerges** it. These are bug-fix and
+   security releases within a series, with the same package names.
+3. **Major series bumps** (e.g. `25.12` → `26.x`) open a PR but are **not**
+   automerged. Package names and defaults change between series (25.12
+   replaced `acme` with `acme-acmesh`, for example), so `packages.txt` and
+   `files/` need reviewing first.
+4. **Digest-only updates** (the same tag rebuilt upstream) are disabled. They
+   don't change the OpenWrt version and would only add new revisions.
+5. Every push to `main` that touches `build.sh`, `packages.txt`, `files/` or
+   the workflow runs `.github/workflows/build.yml`. That builds the image and
+   publishes the next `v<version>-<build>` release.
+
+Things to keep in mind when changing this:
+
+- **Releases are immutable** (repository setting). A published release can't
+  gain or replace assets, so the workflow creates a **draft**, uploads the
+  image and checksums, then publishes. Don't split it into create-then-upload:
+  that publishes an empty release that can't be repaired.
+- If a build fails before publishing, a leftover draft can consume a revision
+  number. Delete the draft and re-run the workflow (`workflow_dispatch`).
+- The PR has no CI checks (the build only runs on `main`), so the automerge
+  rule uses `ignoreTests`. A broken build shows up as a failed run on `main`
+  with no release published. Previous releases are unaffected.
+- This repo only **publishes** images. Rolling a release out to running
+  routers is up to each user. Test a new image on a non-production VM first
+  (snapshot, `sysupgrade`, check your config), since automerge here means no
+  human has booted the image before it's released.
 
 ## Notes
 

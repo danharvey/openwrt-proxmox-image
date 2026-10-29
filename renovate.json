@@ -12,5 +12,21 @@
       "datasourceTemplate": "docker",
       "versioningTemplate": "regex:^x86-64-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     }
+  ],
+  "packageRules": [
+    {
+      "description": "New OpenWrt point releases (see README 'Updates and releases'): open the PR as soon as the tag is published and merge it straight away. Merging triggers the build workflow, which publishes the next v<version>-<N> release. There are no PR checks to wait on (the build only runs on main), hence ignoreTests. Major series bumps (e.g. 25.x -> 26.x) still wait for a human, since package names change between series.",
+      "matchPackageNames": ["openwrt/imagebuilder"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "schedule": ["at any time"],
+      "automerge": true,
+      "ignoreTests": true
+    },
+    {
+      "description": "Digest-only rebuilds of the same imagebuilder tag: don't publish a new image revision for these. The OpenWrt version is unchanged, so a new release would only create noise for anyone tracking releases of this repo.",
+      "matchPackageNames": ["openwrt/imagebuilder"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": false
+    }
   ]
 }
