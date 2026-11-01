@@ -24,6 +24,13 @@ provisioned VMs keep pointing at exactly the image they were built from. A new
 OpenWrt version restarts the revision at `-1`. The OpenWrt version alone still
 names the image file inside the release.
 
+The image records its own release tag (without the leading `v`) in
+`/etc/openwrt_release_tag`, e.g. `25.12.5-2`. `/etc/openwrt_release` only
+carries the OpenWrt version, so this is how a running system tells which build
+revision it has, for example to skip an upgrade it already has. `sysupgrade`
+replaces it with the new image's copy; don't add it to `/etc/sysupgrade.conf`,
+or the old tag is restored over the new one.
+
 ## Using with Proxmox
 
 1. Download and unpack the image, import it as a VM disk
@@ -71,8 +78,9 @@ How a new image gets published:
 4. **Digest-only updates** (the same tag rebuilt upstream) are disabled. They
    don't change the OpenWrt version and would only add new revisions.
 5. Every push to `main` that touches `build.sh`, `packages.txt`, `files/` or
-   the workflow runs `.github/workflows/build.yml`. That builds the image and
-   publishes the next `v<version>-<build>` release.
+   the workflow runs `.github/workflows/build.yml`. That works out the next
+   `v<version>-<build>` tag, builds the image with it baked in, and publishes
+   the release.
 
 Things to keep in mind when changing this:
 
