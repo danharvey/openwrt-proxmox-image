@@ -19,15 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build image
-        id: build
-        run: ./build.sh
-
-      - name: Publish release
+      # Computed before the build so the tag can be baked into the image
+      # (/etc/openwrt_release_tag).
+      - name: Compute release tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          V="${{ steps.build.outputs.version }}"
+          V="$(./build.sh --version)"
           # Immutable per-build revision. Each release is v<openwrt-version>-<N>;
           # N is the next revision for this OpenWrt version, so changing
           # packages.txt/files on the same version publishes a fresh, distinct
@@ -41,7 +40,25 @@ jobs:
                  | sed -E "s/^v${Vre}-//" \
                  | sort -n | tail -1)"
           N=$(( ${N:-0} + 1 ))
-          TAG="v${V}-${N}"
+          {
+            echo "version=$V"
+            echo "build=$N"
+            echo "tag=v${V}-${N}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        id: build
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.version }}-${{ steps.tag.outputs.build }}
+        run: ./build.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.tag.outputs.version }}
+          N: ${{ steps.tag.outputs.build }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
           # Immutable releases are enabled on this repo: once a release is
           # published its assets are frozen, so upload to a draft and publish
           # last. (Creating then uploading published an empty v25.12.6-1.)

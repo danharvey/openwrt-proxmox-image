@@ -1,6 +1,14 @@
 #!/bin/sh
 # Build a generic OpenWrt x86-64 image for Proxmox VE using the official
 # ImageBuilder container. Requires docker. Output: bin/targets/x86/64/.
+#
+#   ./build.sh            build the image
+#   ./build.sh --version  print the OpenWrt version that would be built
+#
+# RELEASE_TAG (e.g. 25.12.6-2, the release tag without its leading v) is
+# written into the image as /etc/openwrt_release_tag, so a running system can
+# tell which build revision it has: /etc/openwrt_release only carries the
+# OpenWrt version. CI sets it; local builds without it don't ship the file.
 set -eu
 
 # Renovate keeps this pinned to the latest stable release (docker datasource).
@@ -19,6 +27,31 @@ TAG="${IMAGEBUILDER#*:}"
 TAG="${TAG%%@*}"
 VERSION="${TAG#x86-64-}"
 
+if [ "${1:-}" = "--version" ]; then
+  echo "$VERSION"
+  exit 0
+fi
+
+RELEASE_TAG="${RELEASE_TAG:-}"
+case "$RELEASE_TAG" in
+  "" | "$VERSION"-[0-9]*) ;;
+  *)
+    echo "RELEASE_TAG '$RELEASE_TAG' does not match OpenWrt version $VERSION" >&2
+    exit 1
+    ;;
+esac
+
+# Stage files/ so build-time files can be added without touching the repo.
+# The imagebuilder container user (uid 1000) must be able to read it.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+cp -a files/. "$STAGE/"
+if [ -n "$RELEASE_TAG" ]; then
+  mkdir -p "$STAGE/etc"
+  printf '%s\n' "$RELEASE_TAG" > "$STAGE/etc/openwrt_release_tag"
+fi
+chmod -R a+rX "$STAGE"
+
 rm -rf bin
 mkdir -p bin
 # The imagebuilder container runs as its own 'buildbot' user (uid 1000), which
@@ -27,7 +60,7 @@ chmod 777 bin
 
 docker run --rm -u 1000 \
   -v "$(pwd)/bin:/builder/bin" \
-  -v "$(pwd)/files:/builder/files:ro" \
+  -v "$STAGE:/builder/files:ro" \
   "$IMAGEBUILDER" \
   make image \
   PROFILE="$PROFILE" \
